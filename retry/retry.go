@@ -2,11 +2,19 @@
 package retry
 
 import (
+	"io"
+	"io/ioutil"
 	"net/http"
 	"time"
 )
 
-var now = time.Now
+var (
+	now = time.Now
+
+	// Limit the size to consume when draining the body
+	// to maintain http connections.
+	bodyReadLimit = int64(4096)
+)
 
 // Attempt counts the round trips issued, starting from 1.  Response is valid
 // only when Err is nil.
@@ -103,11 +111,6 @@ func (t Transport) RoundTrip(req *http.Request) (*http.Response, error) {
 			return resp, err
 		}
 
-		// Close the response body when we wont use it anymore (Retry or Abort)
-		if resp != nil {
-			resp.Body.Close()
-		}
-
 		// Return the error explaining why we aborted and nil as response
 		if retry == Abort {
 			if t.Logger != nil {
@@ -115,6 +118,19 @@ func (t Transport) RoundTrip(req *http.Request) (*http.Response, error) {
 			}
 
 			return nil, retryErr
+		}
+
+		// Drain and close the response body to let the Transport reuse the connection
+		// when we wont use it anymore (Retry).
+		if resp != nil {
+			_, err := io.Copy(ioutil.Discard, io.LimitReader(resp.Body, bodyReadLimit))
+			if err != nil {
+				if t.Logger != nil {
+					t.Logger.Printf("[ERROR] error reading response body: %s", req.Method, req.URL, retryErr)
+				}
+			}
+
+			resp.Body.Close()
 		}
 
 		// ... Retries (stay the loop)
