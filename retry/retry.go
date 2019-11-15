@@ -117,7 +117,7 @@ func (t Transport) RoundTrip(req *http.Request) (*http.Response, error) {
 				t.Logger.Printf("[ERROR] aborting request %s %s, error: %s", req.Method, req.URL, retryErr)
 			}
 
-			return nil, retryErr
+			return resp, retryErr
 		}
 
 		// Drain and close the response body to let the Transport reuse the connection
