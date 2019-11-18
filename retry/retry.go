@@ -74,18 +74,14 @@ func (t Transport) RoundTrip(req *http.Request) (*http.Response, error) {
 
 	for count := uint(1); ; count++ {
 		if count > 1 {
-			if t.Logger != nil {
-				t.Logger.Printf("[DEBUG] retrying %s %s, attempt: %d", req.Method, req.URL, count)
-			}
+			t.logf("[DEBUG] retrying %s %v, attempt: %d", req.Method, req.URL, count)
 		}
 
 		// Perform request
 		resp, err := t.Next.RoundTrip(req)
 
 		if err != nil {
-			if t.Logger != nil {
-				t.Logger.Printf("[INFO] %s %s, request error: %s", req.Method, req.URL, err)
-			}
+			t.logf("[INFO] %s %v, request error: %s", req.Method, req.URL, err)
 		}
 
 		// Collect result of attempt
@@ -101,9 +97,7 @@ func (t Transport) RoundTrip(req *http.Request) (*http.Response, error) {
 		retry, retryErr := retryer(attempt)
 
 		if retryErr != nil {
-			if t.Logger != nil {
-				t.Logger.Printf("[INFO] %s %s, retryer error: %s", req.Method, req.URL, retryErr)
-			}
+			t.logf("[INFO] %s %v, retryer error: %s", req.Method, req.URL, retryErr)
 		}
 
 		// Returns either the valid response or an error coming from the underlying Transport
@@ -113,9 +107,7 @@ func (t Transport) RoundTrip(req *http.Request) (*http.Response, error) {
 
 		// Return the error explaining why we aborted and nil as response
 		if retry == Abort {
-			if t.Logger != nil {
-				t.Logger.Printf("[ERROR] aborting request %s %s, error: %s", req.Method, req.URL, retryErr)
-			}
+			t.logf("[ERROR] aborting request %s %v, error: %s", req.Method, req.URL, retryErr)
 
 			return resp, retryErr
 		}
@@ -125,9 +117,7 @@ func (t Transport) RoundTrip(req *http.Request) (*http.Response, error) {
 		if resp != nil {
 			_, err := io.Copy(ioutil.Discard, io.LimitReader(resp.Body, bodyReadLimit))
 			if err != nil {
-				if t.Logger != nil {
-					t.Logger.Printf("[ERROR] error reading response body: %s", req.Method, req.URL, retryErr)
-				}
+				t.logf("[ERROR] error reading response body: %s", req.Method, req.URL, retryErr)
 			}
 
 			resp.Body.Close()
@@ -137,12 +127,16 @@ func (t Transport) RoundTrip(req *http.Request) (*http.Response, error) {
 
 		// Delay next attempt
 		if t.Delay != nil {
-			if t.Logger != nil {
-				t.Logger.Printf("[DEBUG] delaying before retry %s %s", req.Method, req.URL)
-			}
+			t.logf("[DEBUG] delaying before retry %s %v", req.Method, req.URL)
 
 			t.Delay(attempt)
 		}
 	}
 	panic("unreachable")
+}
+
+func (t Transport) logf(format string, v ...interface{}) {
+	if t.Logger != nil {
+		t.Logger.Printf(format, v...)
+	}
 }
