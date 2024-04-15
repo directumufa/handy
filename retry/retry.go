@@ -107,8 +107,11 @@ func (t Transport) RoundTrip(req *http.Request) (*http.Response, error) {
 
 		// Return the error explaining why we aborted and nil as response
 		if retry == Abort {
-			t.logf("[ERROR] aborting request %s %v, error: %s", req.Method, req.URL, retryErr)
-
+			if retryErr != nil {
+			    t.logf("[ERROR] aborting request %s %v, error: %s", req.Method, req.URL, retryErr)
+			} else {
+				t.logf("[ERROR] aborting request %s %v", req.Method, req.URL)
+			}
 			return resp, retryErr
 		}
 
